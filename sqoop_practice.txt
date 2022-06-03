@@ -1,0 +1,151 @@
+
+/**************************************************Practical in Sqoop***************************************************/
+
+//Create EMPLOYEE table in MySQL
+
+CREATE TABLE EMPLOYEE(
+ID INT NOT NULL,
+NAME VARCHAR (20) NOT NULL,
+SALARY DECIMAL(18,2),
+constraint pk_ID primary key (ID)
+);
+
+CREATE TABLE employee2(
+ID INT NOT NULL,
+NAME VARCHAR (20) NOT NULL,
+SALARY DECIMAL(18,2),
+constraint pk_ID primary key (ID)
+);
+
+INSERT INTO EMPLOYEE(ID,NAME,SALARY) VALUES (1, 'Ramesh',2000.00 );
+INSERT INTO EMPLOYEE(ID,NAME,SALARY) VALUES (2, 'Kiran',3000.00 );
+INSERT INTO EMPLOYEE(ID,NAME,SALARY) VALUES (3, 'Vikash',4000.00 );
+INSERT INTO EMPLOYEE(ID,NAME,SALARY) VALUES (4, 'Shaikat',5000.00 );
+INSERT INTO EMPLOYEE(ID,NAME,SALARY) VALUES (5, 'Mahesh',6000.00 );
+
+#CREATE TABLE IF NOT EXISTS employee2 LIKE EMPLOYEE;
+
+#Select the table from MySQL and based on where clause, import data into HDFS: (Considering that target folder is not already exist)
+
+$>sqoop import --connect jdbc:mysql://localhost/sqoop --username root --password password --table EMPLOYEE --m 1 --direct --where "ID <= 3" --delete-target-dir --target-dir /sqoop007
+
+Incremental Import:
+
+--incremental <mode>
+--check-column <column name>
+--last value <last check column value>
+
+
+Note: --delete-target-dir will delete the target first and then import the data like OVERWRITE!
+
+$>sqoop import --connect jdbc:mysql://localhost/sqoop --username root --password password --table EMPLOYEE --m 1 --direct --incremental append --check-column ID --last-value 3  --target-dir /sqoop007
+
+Check that records imported after ID 3 onwards...
+$>hadoop fs -cat /sqoop009/part-m-00001
+
+Export Table from HDFS to MySQL(employee2 ): Table must exist in MySql
+
+$>sqoop export --connect jdbc:mysql://localhost/sqoop --username root --password password --table employee2 --m 1 --direct --export-dir /sqoop007
+
+#sqoop export --connect jdbc:mysql://localhost/pga21 --username root --password password --table EMPLOYEE3 --update-mode allowinsert --m 1 --direct --export-dir /sqoop_pga21/part-m-00001
+
+#Export Table from Hive to MySQL: ( Table structure needs to exist in MySql: delete data from MySQL: delete from day_temp)
+
+mysql>CREATE TABLE day_temp(day VARCHAR(10), temp int);
+$>sqoop export --connect jdbc:mysql://localhost/sqoop --username root --password password --table day_temp --m 1 --direct --export-dir /user/hive/warehouse/day_temp09 --input-fields-terminated-by ','
+
+
+Import into Hive from MySQL: (No need to have table exist in Hive. It will be created!!!)
+
+$>sqoop import --connect jdbc:mysql://localhost/PGA19 --username root --password password --table employee2 --m 1 --direct --hive-import --hive-table pga19.employee2 
+
+Import into Hive from MySQL: (Using query but in this system It's not working!!!)
+$sqoop import --connect jdbc:mysql://localhost/pga21 --username root --password password  \
+--split-by ID \
+--query "select * from EMPLOYEE where salary > 3000 AND \$CONDITIONS" --m 1  \
+--direct --hive-import --target-dir /user/hive/warehouse/employee_test308/ --fields-terminated-by "," --hive-table employee_test307
+
+Import all tables from MySQL to Hive: (Working!!!):
+$>sqoop import-all-tables --connect jdbc:mysql://localhost/sqoop --username root --password password --hive-import --hive-overwrite --hive-database pga23_1  
+--fields-terminated-by ','  --m 1 --direct
+
+Note:
+--exclude-tables customers
+
+
+Note: Do the following...
+$cd /tmp/sqoop-hduser/compile
+$rm -r *
+$hadoop fs -rm -r  /user/hduser/EMPLOYEE
+
+Show Databases:
+
+$>sqoop list-databases --connect jdbc:mysql://localhost/ --username root --password password 
+
+Show Tables:
+
+$>sqoop list-tables --connect jdbc:mysql://localhost/sqoop --username root --password password 
+
+Sqoop 'eval' tool. It allows users to executeuser-defined queries.
+
+$>sqoop eval --connect jdbc:mysql://localhost/sqoop --username root --password password --query "SELECT * FROM employee LIMIT 3"
+
+Create a Job: NOTE: $rm *.java
+
+#sqoop job --create myjob27 -- import  --connect jdbc:mysql://localhost/sqoop --username root --password password --table day_temp  -m 1 --class-name dayTemp27 --bindir $SQOOP_HOME/lib --delete-target-dir --target-dir /sqoop_67
+
+$>sqoop job --create import_emp -- import --connect jdbc:mysql://localhost/pga25 --username root --password password --table EMPLOYEE --m 1 --direct --where "SALARY > 3000" --delete-target-dir --target-dir /sqoop_pga25
+
+Note: It will create table.jar & class files in "/tmp/sqoop-hduser/compile/XYZ" folder. 
+	--delete-target-dir will delete the target first and then import the data!!!
+	Copy .java & .jar files in the home folder from /home/hduser/sqoop_hbase
+
+//List all jobs
+$> sqoop job --list
+//Delete a job
+$> sqoop job --delete myjob999
+//Show details on a job
+$> sqoop job --show myjob555
+//Execute a job, will be executed in the second attempt!
+$> sqoop job --exec myjob27
+
+
+/***********Migrate a table from MySql to Hbase**************************************************************/
+
+
+hbase(main):010:0> create 'employee0011','emp_details'
+
+$>sqoop import --connect jdbc:mysql://localhost/sqoop  --username root --password password --table EMPLOYEE --bindir $SQOOP_HOME/lib --hbase-table employee0011 --column-family emp_details --hbase-row-key ID --m 1
+
+Note: Here '-m' specifies the number of map task that can be run simultaneously and 'm 1' means that only one map task can run
+--outdir /home/hduser/sqoop_hbase
+--bindir /home/hduser/sqoop_hbase 
+--hbase-create-table
+
+More discussions on SQOOP error: https://dbmstutorials.com/sqoop/sqoop-errors.html
+
+/**********************************************************************************************************/
+
+
+
+sqoop import -Dorg.apache.sqoop.splitter.allow_text_splitter=true --connect jdbc:mysql://localhost:3306/Test?zeroDateTimeBehavior=round --username root -P 
+--split-by customerid --query "select * from customers where state = 'KA' AND \$CONDITIONS"  --target-dir /user/hive/sqoop_mysql_hive_using_free_form/ 
+--fields-terminated-by "," --hive-import --create-hive-table 
+--hive-table sqoop_dbs.customers
+
+
+
+sqoop import --connect jdbc:mysql://localhost/sqoop --username root --password password --split-by day --query "select * from day_temp where temp >= 40 AND \$CONDITIONS" --m 1 --direct --hive-import --hive-table pga23.day_temp 
+
+
+
+
+
+
+
+
+
+
+
+
+
